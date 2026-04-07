@@ -25,11 +25,14 @@
 using namespace std;
 
 char current;				// Current car	
+char nextcar;
 
 void ReadChar(void){		// Read character and skip spaces until 
 				// non space character is read
 	while(cin.get(current) && (current==' '||current=='\t'||current=='\n'))
+		while(cin.get(nextcar) && (nextcar==' '||nextcar=='\t'||nextcar=='\n'))
 	   	cin.get(current);
+		cin.get(nextcar);
 }
 
 void Error(string s){
@@ -94,6 +97,7 @@ void ArithmeticExpression(void){
 	}
 
 }
+
 
 int main(void){	// First version : Source code on standard input and assembly code on standard output
 	// Header for gcc assembler / linker
