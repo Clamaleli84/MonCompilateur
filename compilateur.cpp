@@ -37,6 +37,8 @@ void ReadChar(void){        // Read character and skip spaces until
     }while(current!= EOF &&(current==' '||current=='\t'||current=='\n'));
 }
 
+
+
 void Error(string s){
 	cerr<< s << endl;
 	exit(-1);
@@ -47,14 +49,36 @@ void Error(string s){
 // AdditiveOperator := "+" | "-"
 // Digit := "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"
 
-	
+
+// AdditiveOperator := "+" | "-" | "||"
 void AdditiveOperator(void){
-	if(current=='+'||current=='-')
+	if(current=='+'||current=='-'){
 		ReadChar();
-	else
+	}
+	else if (current=='|' && nextcar=='|'){
+		ReadChar();
+		ReadChar();
+	}
+	else{
 		Error("Opérateur additif attendu");	   // Additive operator expected
+	}
 }
-		
+
+// MultiplicativeOperator := "*" | "/" | "%" | "&&"
+void MultiplicativeOperator(void){
+	if(current=='*'||current=='/'||current=='%'){
+		ReadChar();
+	}
+	else if (current=='&' && nextcar=='&'){
+		ReadChar();
+	}
+	else{
+		Error("Opérateur multiplicatif attendu");	   // Multiplicative operator expected
+	}
+}
+
+
+// Digit := "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"
 void Digit(void){
 	if((current<'0')||(current>'9'))
 		Error("Chiffre attendu");		   // Digit expected
@@ -62,6 +86,29 @@ void Digit(void){
 		cout << "\tpush $"<<current<<endl;
 		ReadChar();
 	}
+}
+
+// Number := Digit{Digit}
+void Number(void){
+	Digit();		   // Digit expected
+	while(current>='0' && current<='9') {
+		Digit();	   // Digit expected
+	}
+}
+
+// Letter := "a"|...|"z"
+void Letter(void){
+	if(current<'a' || current>'z')
+		Error("Lettre attendue");		   // Letter expected
+	else{
+		cout << "\tpush "<<current<<endl;
+		ReadChar();
+	}
+}
+
+// Factor := Number | Letter | "(" Expression ")"| "!" Factor
+void Factor(void){
+	//.....
 }
 
 void ArithmeticExpression(void);			// Called by Term() and calls Term()
@@ -100,9 +147,8 @@ void ArithmeticExpression(void){
 
 }
 
-// expression> ::= <ExpressionArithmétique> | <ExpressionArithmétique> <OpérateurRelationnel> <ExpressionArithmétique> 
-//<OpérateurRelationnel> ::= '=' | '<>' | '<' | '<=' | '>=' | '>'  
-
+// expression> ::= <ExpressionArithmétique> | <ExpressionArithmétique> <OpérateurRelationnel> <ExpressionArithmétique>   
+// RelationalOperator := "==" | "!=" | "<" | ">" | "<=" | ">="  
 void RelationalOperator(void){
 	if(current=='<'||current=='>'){
 		if(nextcar=='='){
@@ -113,7 +159,7 @@ void RelationalOperator(void){
 		else {
 			ReadChar();
 		}
-	}else if(current=='='){
+	}else if(current=='!' || current=='=' && nextcar=='='){
 		ReadChar();}
 	else {
 		Error("Opérateur relationnel attendu");	   // Relational operator expected
@@ -128,6 +174,18 @@ void expression(void){
 		ArithmeticExpression();
 	}
 }
+
+// Program := [DeclarationPart] StatementPart
+// DeclarationPart := "[" Letter {"," Letter} "]"
+// StatementPart := Statement {";" Statement} "."
+// Statement := AssignementStatement
+// AssignementStatement := Letter "=" Expression
+
+// Expression := SimpleExpression [RelationalOperator SimpleExpression]
+// SimpleExpression := Term {AdditiveOperator Term}
+// Term := Factor {MultiplicativeOperator Factor}
+// Factor := Number | Letter | "(" Expression ")"| "!" Factor
+
 
 int main(void){	// First version : Source code on standard input and assembly code on standard output
 	// Header for gcc assembler / linker
