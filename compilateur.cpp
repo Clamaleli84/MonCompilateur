@@ -24,15 +24,17 @@
 
 using namespace std;
 
-char current;				// Current car	
+char current = EOF;				// Current car	
 char nextcar;
 
-void ReadChar(void){		// Read character and skip spaces until 
-				// non space character is read
-	while(cin.get(current) && (current==' '||current=='\t'||current=='\n'))
-		while(cin.get(nextcar) && (nextcar==' '||nextcar=='\t'||nextcar=='\n'))
-	   	cin.get(current);
-		cin.get(nextcar);
+void ReadChar(void){        // Read character and skip spaces until 
+                // non space character is read
+    if(current == EOF)
+        cin.get(nextcar);
+    do{
+           current = nextcar;
+        cin.get(nextcar);
+    }while(current!= EOF &&(current==' '||current=='\t'||current=='\n'));
 }
 
 void Error(string s){
@@ -98,6 +100,34 @@ void ArithmeticExpression(void){
 
 }
 
+// expression> ::= <ExpressionArithmétique> | <ExpressionArithmétique> <OpérateurRelationnel> <ExpressionArithmétique> 
+//<OpérateurRelationnel> ::= '=' | '<>' | '<' | '<=' | '>=' | '>'  
+
+void RelationalOperator(void){
+	if(current=='<'||current=='>'){
+		if(nextcar=='='){
+			ReadChar();}
+		else if (current=='<'&& nextcar=='>'){
+				ReadChar();
+			}
+		else {
+			ReadChar();
+		}
+	}else if(current=='='){
+		ReadChar();}
+	else {
+		Error("Opérateur relationnel attendu");	   // Relational operator expected
+	}
+}
+
+void expression(void){
+	ArithmeticExpression();
+	ReadChar();
+	if(current=='='||current=='<'||current=='>'){
+		RelationalOperator();
+		ArithmeticExpression();
+	}
+}
 
 int main(void){	// First version : Source code on standard input and assembly code on standard output
 	// Header for gcc assembler / linker
@@ -109,7 +139,7 @@ int main(void){	// First version : Source code on standard input and assembly co
 
 	// Let's proceed to the analysis and code production
 	ReadChar();
-	ArithmeticExpression();
+	expression();
 	ReadChar();
 	// Trailer for the gcc assembler / linker
 	cout << "\tmovq %rbp, %rsp\t\t# Restore the position of the stack's top"<<endl;
