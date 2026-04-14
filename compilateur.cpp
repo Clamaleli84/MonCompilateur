@@ -190,13 +190,15 @@ void Expression(void){
 
 // AssignmentStatement := Letter "=" Expression
 void Assignment(void){
-    if(!(current>='a' && current<='z'))
-        Error("Lettre attendue");
+    if(!(current>='a' && current<='z')){
+        Error("Lettre attendue2");
+    }
     char varName = current;
     ReadChar();                          
 
-    if(current != '=')
+    if(current != '='){
         Error("Caractère '=' attendu");
+    }
     ReadChar();                          
 
     Expression();
@@ -217,6 +219,7 @@ void StatementPart(void){
         ReadChar();                      
         Statement();
     }
+    
     if(current != '.')
         Error("Caractère '.' attendu");
 }
@@ -226,10 +229,11 @@ void DeclarationPart(void){
     if(current != '[')
         Error("Caractère '[' attendu");
     ReadChar();                          
-
-    if(!(current>='a' && current<='z'))
+    cerr<<"current : "<<current<<endl;
+    if(current<'a' && current>'z'){
+        cerr<<"current : "<<current<<endl;
         Error("Lettre attendue");
-
+    }
     while(current>='a' && current<='z'){
         char varName = current;
         cout << "\t.comm " << varName << ", 8, 8" << endl;
@@ -246,13 +250,15 @@ void DeclarationPart(void){
 // Program := [DeclarationPart] StatementPart
 void Program(void){
     cout << "\t.bss" << endl;
-    while(current == '['){
+    if(current == '['){
         DeclarationPart();
     }
+    else {
     cout << "\t.text" << endl;
     cout << "\t.globl main" << endl;
     cout << "main:" << endl;
     StatementPart();
+    }
 }
 
 int main(void){
