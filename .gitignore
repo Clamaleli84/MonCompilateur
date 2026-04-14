@@ -1,0 +1,5 @@
+compilateur
+test
+*.s
+*.o
+
