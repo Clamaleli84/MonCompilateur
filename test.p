@@ -1,2 +1,3 @@
 [a]
-IF 2==2 THEN BEGIN WHILE a!=4 DO a:=4 END.
+a:=5+6;
+DISPLAY a+1.

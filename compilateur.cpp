@@ -31,7 +31,7 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
-enum TYPES {UNSIGNED_INT, BOOLEAN};
+enum TYPES {INTEGER, BOOLEAN};
 
 TOKEN current;				// Current token
 
@@ -78,14 +78,14 @@ void Error(string s){
 enum TYPES Identifier(void){
 	cout << "\tpush "<<lexer->YYText()<<endl;
 	current=(TOKEN) lexer->yylex();
-	return UNSIGNED_INT;
+	return INTEGER;
 }
 
 // Number := Digit{Digit}
 enum TYPES Number(void){
 	cout <<"\tpush $"<<atoi(lexer->YYText())<<endl;
 	current=(TOKEN) lexer->yylex();
-	return UNSIGNED_INT;
+	return INTEGER;
 }
 
 enum TYPES Expression(void);			// Called by Term() and calls Term()
@@ -315,7 +315,7 @@ enum TYPES AssignementStatement(void){
 		cerr << "Erreur : Variable '"<<lexer->YYText()<<"' non déclarée"<<endl;
 		exit(-1);
 	}
-	type1=UNSIGNED_INT;	
+	type1=INTEGER;	
 	variable=lexer->YYText();
 	current=(TOKEN) lexer->yylex();
 	if(current!=ASSIGN)
@@ -442,7 +442,28 @@ void StatementPart(void){
 	current=(TOKEN) lexer->yylex();
 }
 
-//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement
+// DISPLAY := DISPLAY <expression>
+void Display(void){
+	enum TYPES type;
+	if (current==DISPLAY){
+		current=(TOKEN) lexer->yylex();
+		type=Expression();
+		if (type!=INTEGER){
+		Error("Le type demandé n'est pas un entier");
+	}
+	}
+	else{
+		Error("Mot clé DISPLAY attendu");
+	}
+	cout << "\tpop %rdx\t# The value to be displayed"<<endl;
+	cout << "\tmovq $FormatString1, %rsi\t# \"%llu\\n\""<<endl;
+	cout << "\tmovl	$1, %edi"<<endl;
+	cout << "\tmovl	$0, %eax"<<endl;
+	cout << "\tcall	__printf_chk@PLT"<<endl;
+
+}
+
+//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display
 void Statement(void){
 	if(current==ID){
 		AssignementStatement();
@@ -459,6 +480,9 @@ void Statement(void){
 	else if(current==BEG){
 		BlockStatement();
 	}
+	else if(current==DISPLAY){
+		Display();
+	}
 	else {
 		Error("Erreur aucun mot clé renseigné");
 	}
@@ -474,6 +498,8 @@ void Program(void){
 int main(void){	// First version : Source code on standard input and assembly code on standard output
 	// Header for gcc assembler / linker
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
+	cout << ".data"<<endl;
+	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
 	// Let's proceed to the analysis and code production
 	current=(TOKEN) lexer->yylex();
 	Program();

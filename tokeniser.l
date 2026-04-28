@@ -41,6 +41,8 @@ unknown [^\"A-Za-z0-9 \n\r\t\(\)\<\>\=\!\%\&\|\}\-\;\.]+
 "THEN"		return THEN;
 "ELSE"		return ELSE;
 
+"DISPLAY" 	return DISPLAY;
+
 {addop}		return ADDOP;
 {mulop}		return MULOP;
 {relop}		return RELOP;
