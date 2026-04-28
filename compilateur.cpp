@@ -31,6 +31,7 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
+enum TYPES {UNSIGNED_INT};
 
 TOKEN current;				// Current token
 
@@ -74,14 +75,16 @@ void Error(string s){
 // Letter := "a"|...|"z"
 	
 		
-void Identifier(void){
+unsigned int Identifier(void){
 	cout << "\tpush "<<lexer->YYText()<<endl;
 	current=(TOKEN) lexer->yylex();
+	return current;
 }
 
-void Number(void){
+enum TYPES Number(void){
 	cout <<"\tpush $"<<atoi(lexer->YYText())<<endl;
 	current=(TOKEN) lexer->yylex();
+	return UNSIGNED_INT;
 }
 
 void Expression(void);			// Called by Term() and calls Term()
@@ -304,11 +307,14 @@ void Statement(void);
 
 //IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
 void IfStatement (void){
-	if (lexer->yylex() == IF){
+	if (current== IF){
+		current=(TOKEN) lexer->yylex();
 		Expression();
-		if (lexer->yylex() == THEN){
+		if (current == THEN){
+			current=(TOKEN) lexer->yylex();
 			Statement();
-			if (lexer->yylex() == ELSE){
+			if (current== ELSE){
+				current=(TOKEN) lexer->yylex();
 				Statement();
 			}
 		}
@@ -324,9 +330,11 @@ void IfStatement (void){
 
 //WhileStatement := "WHILE" Expression "DO" Statement
 void WhileStatement(void){
-	if (lexer->yylex() == WHILE){
+	if (current== WHILE){
+		current=(TOKEN) lexer->yylex();
 		Expression();
-		if (lexer->yylex() == DO){
+		if (current== DO){
+			current=(TOKEN) lexer->yylex();
 			Statement();
 		}
 		else {
@@ -341,11 +349,14 @@ void WhileStatement(void){
 
 //ForStatement := "FOR" AssignementStatement "To" Expression "DO" Statement
 void ForStatement(void){
-	if (lexer->yylex() == FOR){
+	if (current== FOR){
+		current=(TOKEN) lexer->yylex();
 		AssignementStatement();
-		if (lexer->yylex() == TO){
+		if (current== TO){
+			current=(TOKEN) lexer->yylex();
 			Expression();
-			if (lexer->yylex() == DO){
+			if (current == DO){
+				current=(TOKEN) lexer->yylex();
 				Statement();
 			}
 			else {
@@ -363,14 +374,17 @@ void ForStatement(void){
 
 //BlockStatement := "BEGIN" Statement { ";" Statement } "END"
 void BlockStatement(void) {
-	if (lexer->yylex() == BEG){
+	if (current == BEG){
+		current=(TOKEN) lexer->yylex();
 		Statement();
 		while (current == SEMICOLON) {
+			current=(TOKEN) lexer->yylex();
 			Statement();
 		}
-		if (lexer->yylex() != END) {
+		if (current!= END) {
 			Error("texte 'END' Attendu");
 		}
+		current=(TOKEN) lexer->yylex();
 	}
 	else {
 		Error("Texte 'BEGIN' Attendu");
@@ -398,16 +412,16 @@ void Statement(void){
 	if(current==ID){
 		AssignementStatement();
 	}
-	else if(lexer->yylex() == IF){
+	else if(current==IF){
 		IfStatement();
 	}
-	else if(lexer->yylex() == WHILE){
+	else if(current==WHILE){
 		WhileStatement();
 	}
-	else if(lexer->yylex() == FOR){
+	else if(current==FOR){
 		ForStatement();
 	}
-	else if(lexer->yylex() == BEG){
+	else if(current==BEG){
 		BlockStatement();
 	}
 	else {
