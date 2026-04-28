@@ -31,7 +31,7 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
-enum TYPES {UNSIGNED_INT};
+enum TYPES {UNSIGNED_INT, BOOLEAN};
 
 TOKEN current;				// Current token
 
@@ -75,24 +75,27 @@ void Error(string s){
 // Letter := "a"|...|"z"
 	
 		
-unsigned int Identifier(void){
+enum TYPES Identifier(void){
 	cout << "\tpush "<<lexer->YYText()<<endl;
 	current=(TOKEN) lexer->yylex();
-	return current;
+	return UNSIGNED_INT;
 }
 
+// Number := Digit{Digit}
 enum TYPES Number(void){
 	cout <<"\tpush $"<<atoi(lexer->YYText())<<endl;
 	current=(TOKEN) lexer->yylex();
 	return UNSIGNED_INT;
 }
 
-void Expression(void);			// Called by Term() and calls Term()
+enum TYPES Expression(void);			// Called by Term() and calls Term()
 
-void Factor(void){
+// Factor := Number | Letter | "(" Expression ")"| "!" Factor
+enum TYPES Factor(void){
+	enum TYPES type;
 	if(current==RPARENT){
 		current=(TOKEN) lexer->yylex();
-		Expression();
+		type=Expression();
 		if(current!=LPARENT)
 			Error("')' était attendu");		// ")" expected
 		else
@@ -100,12 +103,14 @@ void Factor(void){
 	}
 	else 
 		if (current==NUMBER)
-			Number();
+			type=Number();
 	     	else
 				if(current==ID)
-					Identifier();
+					type=Identifier();
+					
 				else
 					Error("'(' ou chiffre ou lettre attendue");
+	return type;
 }
 
 // MultiplicativeOperator := "*" | "/" | "%" | "&&"
@@ -125,12 +130,16 @@ OPMUL MultiplicativeOperator(void){
 }
 
 // Term := Factor {MultiplicativeOperator Factor}
-void Term(void){
+enum TYPES Term(void){
 	OPMUL mulop;
-	Factor();
+	enum TYPES type1, type2;
+	type1=Factor();
 	while(current==MULOP){
 		mulop=MultiplicativeOperator();		// Save operator in local variable
-		Factor();
+		type2=Factor();
+		if(type1!=type2){
+			Error("Type differents/incompatibles pour Term");
+		}
 		cout << "\tpop %rbx"<<endl;	// get first operand
 		cout << "\tpop %rax"<<endl;	// get second operand
 		switch(mulop){
@@ -156,6 +165,7 @@ void Term(void){
 				Error("opérateur multiplicatif attendu");
 		}
 	}
+	return type1;
 }
 
 // AdditiveOperator := "+" | "-" | "||"
@@ -173,12 +183,16 @@ OPADD AdditiveOperator(void){
 }
 
 // SimpleExpression := Term {AdditiveOperator Term}
-void SimpleExpression(void){
+enum TYPES SimpleExpression(void){
+	enum TYPES type1, type2;
 	OPADD adop;
-	Term();
+	type1 = Term();
 	while(current==ADDOP){
 		adop=AdditiveOperator();		// Save operator in local variable
-		Term();
+		type2 = Term();
+		if(type1!=type2){
+			Error("Type differents/incompatibles pour SimpleExpression");
+		}
 		cout << "\tpop %rbx"<<endl;	// get first operand
 		cout << "\tpop %rax"<<endl;	// get second operand
 		switch(adop){
@@ -196,7 +210,7 @@ void SimpleExpression(void){
 		}
 		cout << "\tpush %rax"<<endl;			// store result
 	}
-
+	return type1;
 }
 
 // DeclarationPart := "[" Ident {"," Ident} "]"
@@ -246,12 +260,16 @@ OPREL RelationalOperator(void){
 }
 
 // Expression := SimpleExpression [RelationalOperator SimpleExpression]
-void Expression(void){
+enum TYPES Expression(void){
+	enum TYPES type1, type2;
 	OPREL oprel;
-	SimpleExpression();
+	type1=SimpleExpression();
 	if(current==RELOP){
 		oprel=RelationalOperator();
-		SimpleExpression();
+		type2=SimpleExpression();
+		if(type1!=type2){
+			Error("Type differents/incompatibles pour Expression");
+		}
 		cout << "\tpop %rax"<<endl;
 		cout << "\tpop %rbx"<<endl;
 		cout << "\tcmpq %rax, %rbx"<<endl;
@@ -276,16 +294,20 @@ void Expression(void){
 				break;
 			default:
 				Error("Opérateur de comparaison inconnu");
+
 		}
 		cout << "\tpush $0\t\t# False"<<endl;
 		cout << "\tjmp Suite"<<TagNumber<<endl;
 		cout << "Vrai"<<TagNumber<<":\tpush $0xFFFFFFFFFFFFFFFF\t\t# True"<<endl;	
 		cout << "Suite"<<TagNumber<<":"<<endl;
+		return BOOLEAN;
 	}
+	return type1;
 }
 
 // AssignementStatement := Identifier ":=" Expression
-void AssignementStatement(void){
+enum TYPES AssignementStatement(void){
+	enum TYPES type1, type2;
 	string variable;
 	if(current!=ID)
 		Error("Identificateur attendu");
@@ -293,13 +315,18 @@ void AssignementStatement(void){
 		cerr << "Erreur : Variable '"<<lexer->YYText()<<"' non déclarée"<<endl;
 		exit(-1);
 	}
+	type1=UNSIGNED_INT;	
 	variable=lexer->YYText();
 	current=(TOKEN) lexer->yylex();
 	if(current!=ASSIGN)
 		Error("caractères ':=' attendus");
 	current=(TOKEN) lexer->yylex();
-	Expression();
+	type2=Expression();
+	if (type1!=type2){
+		Error("Type differents/incompatibles pour AssignementStatement");
+	}
 	cout << "\tpop "<<variable<<endl;
+	return type1;
 }
 
 void Statement(void);
@@ -307,9 +334,13 @@ void Statement(void);
 
 //IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
 void IfStatement (void){
+	enum TYPES type;
 	if (current== IF){
 		current=(TOKEN) lexer->yylex();
-		Expression();
+		type=Expression();
+		if (type != BOOLEAN){
+			Error("type non boolean dans le IF");
+		}
 		if (current == THEN){
 			current=(TOKEN) lexer->yylex();
 			Statement();
@@ -330,9 +361,13 @@ void IfStatement (void){
 
 //WhileStatement := "WHILE" Expression "DO" Statement
 void WhileStatement(void){
+	enum TYPES type;
 	if (current== WHILE){
 		current=(TOKEN) lexer->yylex();
-		Expression();
+		type=Expression();
+		if (type != BOOLEAN){
+			Error("type non boolean dans le While");
+		}
 		if (current== DO){
 			current=(TOKEN) lexer->yylex();
 			Statement();
