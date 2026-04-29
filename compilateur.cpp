@@ -31,7 +31,6 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
-enum TYPES {INTEGER, BOOLEAN};
 
 TOKEN current;				// Current token
 
@@ -463,7 +462,68 @@ void Display(void){
 
 }
 
-//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display
+enum TYPES check_type (void){
+	if(strcmp(lexer->YYText(),"BOOLEAN")==0){
+		return BOOLEAN;
+	}	
+	else if(strcmp(lexer->YYText(),"INTEGER")==0){
+		return INTEGER;
+	}
+	else {
+		Error ("Erreur type attendu");
+	}
+}
+
+// VarDeclaration := Ident {"," Ident} ":" Type
+void VarDeclaration(void){
+	enum TYPES type;
+	if (current==ID){
+		Identifier();
+		while (current==COMMA){
+			current=(TOKEN) lexer->yylex();
+			if (current==ID){
+				Identifier();
+			}
+			else {
+				Error("Erreur Ident requis ");
+			}
+		}
+		if (current==COLON){
+			current=(TOKEN) lexer->yylex();
+			type=check_type();
+		}
+		else {
+			Error("Erreur signe ':' attendu ");
+		}
+	}
+	else {
+		Error("Erreur Ident requis ");
+	}
+	
+}
+
+// VarDeclarationPart := "VAR" VarDeclaration {";" VarDeclaration} "."
+void VarDeclarationPart(void){
+	if (current==VAR){
+		current=(TOKEN) lexer->yylex();
+		VarDeclaration();
+		current=(TOKEN) lexer->yylex();
+		while (current==SEMICOLON){
+			current=(TOKEN) lexer->yylex();
+			VarDeclaration();	
+		}
+		current=(TOKEN) lexer->yylex();
+		if (current!=DOT){
+			Error("le signe '.' est attendu ");
+		}
+	}
+	else {
+		Error("le texte 'VAR' est attendu ");
+	}
+}
+
+
+//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display | VarDeclarationPart
 void Statement(void){
 	if(current==ID){
 		AssignementStatement();
@@ -483,6 +543,9 @@ void Statement(void){
 	else if(current==DISPLAY){
 		Display();
 	}
+	else if(current==VAR){
+		VarDeclarationPart();
+	}
 	else {
 		Error("Erreur aucun mot clé renseigné");
 	}
@@ -500,6 +563,8 @@ int main(void){	// First version : Source code on standard input and assembly co
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
 	cout << ".data"<<endl;
 	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
+	cout << "TrueString:\t.string \"TRUE\\n\"\t# used by printf to display the boolean value TRUE"<<endl; 
+	cout << "FalseString:\t.string \"FALSE\\n\"\t# used by printf to display the boolean value FALSE"<<endl; 
 	// Let's proceed to the analysis and code production
 	current=(TOKEN) lexer->yylex();
 	Program();
