@@ -478,11 +478,16 @@ enum TYPES check_type (void){
 void VarDeclaration(void){
 	enum TYPES type;
 	if (current==ID){
-		Identifier();
+		cout << lexer->YYText() << ":\t.quad 0" << endl;  
+		DeclaredVariables.insert(lexer->YYText());           
+		current = (TOKEN) lexer->yylex();                    
 		while (current==COMMA){
 			current=(TOKEN) lexer->yylex();
 			if (current==ID){
-				Identifier();
+				string varName = lexer->YYText();          
+				cout << varName << ":\t.quad 0" << endl;
+				DeclaredVariables.insert(varName);         
+				current = (TOKEN) lexer->yylex();
 			}
 			else {
 				Error("Erreur Ident requis ");
@@ -491,6 +496,7 @@ void VarDeclaration(void){
 		if (current==COLON){
 			current=(TOKEN) lexer->yylex();
 			type=check_type();
+			current=(TOKEN) lexer->yylex();
 		}
 		else {
 			Error("Erreur signe ':' attendu ");
@@ -500,6 +506,7 @@ void VarDeclaration(void){
 		Error("Erreur Ident requis ");
 	}
 	
+	
 }
 
 // VarDeclarationPart := "VAR" VarDeclaration {";" VarDeclaration} "."
@@ -507,15 +514,14 @@ void VarDeclarationPart(void){
 	if (current==VAR){
 		current=(TOKEN) lexer->yylex();
 		VarDeclaration();
-		current=(TOKEN) lexer->yylex();
 		while (current==SEMICOLON){
 			current=(TOKEN) lexer->yylex();
 			VarDeclaration();	
 		}
-		current=(TOKEN) lexer->yylex();
 		if (current!=DOT){
 			Error("le signe '.' est attendu ");
 		}
+		current=(TOKEN) lexer->yylex();
 	}
 	else {
 		Error("le texte 'VAR' est attendu ");
@@ -523,7 +529,7 @@ void VarDeclarationPart(void){
 }
 
 
-//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display | VarDeclarationPart
+//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display
 void Statement(void){
 	if(current==ID){
 		AssignementStatement();
@@ -543,9 +549,6 @@ void Statement(void){
 	else if(current==DISPLAY){
 		Display();
 	}
-	else if(current==VAR){
-		VarDeclarationPart();
-	}
 	else {
 		Error("Erreur aucun mot clé renseigné");
 	}
@@ -555,6 +558,8 @@ void Statement(void){
 void Program(void){
 	if(current==RBRACKET)
 		DeclarationPart();
+	if(current==VAR)          
+        VarDeclarationPart();
 	StatementPart();	
 }
 
