@@ -23,7 +23,8 @@ stringconst  \"[^\n"]+\"
 ws      [ \t\n\r]+
 alpha   [A-Za-z]
 digit   [0-9]
-number  {digit}+
+number  {digit}+(\.{digit}+)?
+charconst   \'(\\.|[^\'\\])\'
 id	{alpha}({alpha}|{digit})*
 addop	(\+|\-|\|\|)
 mulop	(\*|\/|%|\&\&)
@@ -43,9 +44,13 @@ unknown [^\"A-Za-z0-9 \n\r\t\(\)\<\>\=\!\%\&\|\}\-\;\.]+
 
 "DISPLAY" 	return DISPLAY;
 "VAR"		return VAR;
+
 "BOOLEAN"	return BOOLEAN;
 "INTEGER"	return INTEGER;
+"DOUBLE"	return DOUBLE;
+"CHAR"		return CHARTYPE;
 
+{charconst}     return CHARCONST;
 {addop}		return ADDOP;
 {mulop}		return MULOP;
 {relop}		return RELOP;

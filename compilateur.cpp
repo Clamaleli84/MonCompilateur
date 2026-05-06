@@ -22,6 +22,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <set>
+#include <map>
 #include <FlexLexer.h>
 #include "tokeniser.h"
 #include <cstring>
@@ -41,8 +42,8 @@ FlexLexer* lexer = new yyFlexLexer; // This is the flex tokeniser
 // and lexer->YYText() returns the lexicon entry as a string
 
 	
-set<string> DeclaredVariables;
-unsigned long TagNumber=0;
+map<string, enum TYPES> DeclaredVariables;
+unsigned long long TagNumber=0;
 
 bool IsDeclared(const char *id){
 	return DeclaredVariables.find(id)!=DeclaredVariables.end();
@@ -75,16 +76,58 @@ void Error(string s){
 	
 		
 enum TYPES Identifier(void){
+	enum TYPES type;
+	type=DeclaredVariables[lexer->YYText()];
 	cout << "\tpush "<<lexer->YYText()<<endl;
 	current=(TOKEN) lexer->yylex();
-	return INTEGER;
+	return type;
 }
 
 // Number := Digit{Digit}
 enum TYPES Number(void){
-	cout <<"\tpush $"<<atoi(lexer->YYText())<<endl;
-	current=(TOKEN) lexer->yylex();
-	return INTEGER;
+	bool decimal = false;
+	double d;
+	unsigned int *i;
+	string nombre = lexer->YYText();
+	if(nombre.find(".")!=string::npos){
+		// Floating point constant number
+		d=atof(lexer->YYText());
+		i=(unsigned int *) &d; // i points to the const double
+		//cout <<"\tpush $"<<*i<<"\t# Conversion of "<<d<<endl;
+		// Is equivalent to : 
+		cout <<"\tsubq $8,%rsp\t\t\t# allocate 8 bytes on stack's top"<<endl;
+		cout <<"\tmovl	$"<<*i<<", (%rsp)\t# Conversion of "<<d<<" (32 bit high part)"<<endl;
+		cout <<"\tmovl	$"<<*(i+1)<<", 4(%rsp)\t# Conversion of "<<d<<" (32 bit low part)"<<endl;
+		current=(TOKEN) lexer->yylex();
+		return DOUBLE;
+	}
+	else {
+		cout <<"\tpush $"<<atoi(lexer->YYText())<<endl;
+		current=(TOKEN) lexer->yylex();
+		return INTEGER;
+	}
+}
+
+enum TYPES CharConst(void){
+    string s = lexer->YYText();
+    char c = s[1];  // extraire le caractère entre les apostrophes
+    
+    // Gérer les séquences d'échappement
+    if(c == '\\' && s.length() >= 3){
+        switch(s[2]){
+            case 'n': c = '\n'; break;
+            case 't': c = '\t'; break;
+            case '\\': c = '\\'; break;
+            case '\'': c = '\''; break;
+            default: c = s[2]; break;
+        }
+    }
+    
+    cout << "\tmovq $0, %rax" << endl;
+    cout << "\tmovb $" << (int)c << ", %al\t# char '" << s << "'" << endl;
+    cout << "\tpush %rax" << endl;
+    current = (TOKEN) lexer->yylex();
+    return CHAR;
 }
 
 enum TYPES Expression(void);			// Called by Term() and calls Term()
@@ -92,23 +135,27 @@ enum TYPES Expression(void);			// Called by Term() and calls Term()
 // Factor := Number | Letter | "(" Expression ")"| "!" Factor
 enum TYPES Factor(void){
 	enum TYPES type;
-	if(current==RPARENT){
-		current=(TOKEN) lexer->yylex();
-		type=Expression();
-		if(current!=LPARENT)
-			Error("')' était attendu");		// ")" expected
-		else
+	switch(current){
+		case RPARENT :
 			current=(TOKEN) lexer->yylex();
-	}
-	else 
-		if (current==NUMBER)
-			type=Number();
-	     	else
-				if(current==ID)
-					type=Identifier();
-					
-				else
-					Error("'(' ou chiffre ou lettre attendue");
+			type=Expression();
+			if(current!=LPARENT)
+				Error("')' était attendu");		// ")" expected
+			else
+				current=(TOKEN) lexer->yylex();
+			break;
+		case NUMBER : 
+			type = Number();
+			break;
+		case ID: 
+			type = Identifier();
+			break;
+		case CHARCONST :
+			type = CharConst();
+			break;
+		default : 
+			Error("'(', ou constante ou variable attendue.");
+	};
 	return type;
 }
 
@@ -139,27 +186,57 @@ enum TYPES Term(void){
 		if(type1!=type2){
 			Error("Type differents/incompatibles pour Term");
 		}
-		cout << "\tpop %rbx"<<endl;	// get first operand
-		cout << "\tpop %rax"<<endl;	// get second operand
 		switch(mulop){
 			case AND:
+				if(type2!=BOOLEAN)
+					Error("type booléen requis pour l'opérateur AND");
+				cout << "\tpop %rbx"<<endl;	// get first operand
+				cout << "\tpop %rax"<<endl;	// get second operand
 				cout << "\tmulq	%rbx"<<endl;	// a * b -> %rdx:%rax
 				cout << "\tpush %rax\t# AND"<<endl;	// store result
 				break;
 			case MUL:
-				cout << "\tmulq	%rbx"<<endl;	// a * b -> %rdx:%rax
-				cout << "\tpush %rax\t# MUL"<<endl;	// store result
+				if(type2!=INTEGER&&type2!=DOUBLE)
+					Error("type numérique requis pour la multiplication");
+				if(type2==INTEGER){
+					cout << "\tpop %rbx"<<endl;	// get first operand
+					cout << "\tpop %rax"<<endl;	// get second operand
+					cout << "\tmulq	%rbx"<<endl;	// a * b -> %rdx:%rax
+					cout << "\tpush %rax\t# MUL"<<endl;	// store result
+				}else{
+					cout<<"\tfldl	8(%rsp)\t"<<endl;
+					cout<<"\tfldl	(%rsp)\t# first operand -> %st(0) ; second operand -> %st(1)"<<endl;
+					cout<<"\tfmulp	%st(0),%st(1)\t# %st(0) <- op1 + op2 ; %st(1)=null"<<endl;
+					cout<<"\tfstpl 8(%rsp)"<<endl;
+					cout<<"\taddq	$8, %rsp\t# result on stack's top"<<endl; 
+				}
 				break;
 			case DIV:
-				cout << "\tmovq $0, %rdx"<<endl; 	// Higher part of numerator  
-				cout << "\tdiv %rbx"<<endl;			// quotient goes to %rax
-				cout << "\tpush %rax\t# DIV"<<endl;		// store result
+				if(type2!=INTEGER&&type2!=DOUBLE)
+					Error("type numérique requis pour la division");
+				if(type2==INTEGER){
+					cout << "\tpop %rbx"<<endl;	// get first operand
+					cout << "\tpop %rax"<<endl;	// get second operand
+					cout << "\tmovq $0, %rdx"<<endl; 	
+					cout << "\tdiv %rbx"<<endl;			
+					cout << "\tpush %rax\t# DIV"<<endl;		// store result
+				}
+				else{
+					cout<<"\tfldl	(%rsp)\t"<<endl;
+					cout<<"\tfldl	8(%rsp)\t# first operand -> %st(0) ; second operand -> %st(1)"<<endl;
+					cout<<"\tfdivp	%st(0),%st(1)\t# %st(0) <- op1 + op2 ; %st(1)=null"<<endl;
+					cout<<"\tfstpl 8(%rsp)"<<endl;
+					cout<<"\taddq	$8, %rsp\t# result on stack's top"<<endl; 
+				}
 				break;
 			case MOD:
+				if(type2!=INTEGER)
+					Error("type non entier pour le modulo");
 				cout << "\tmovq $0, %rdx"<<endl; 	// Higher part of numerator  
 				cout << "\tdiv %rbx"<<endl;			// remainder goes to %rdx
 				cout << "\tpush %rdx\t# MOD"<<endl;		// store result
 				break;
+
 			default:
 				Error("opérateur multiplicatif attendu");
 		}
@@ -192,22 +269,52 @@ enum TYPES SimpleExpression(void){
 		if(type1!=type2){
 			Error("Type differents/incompatibles pour SimpleExpression");
 		}
-		cout << "\tpop %rbx"<<endl;	// get first operand
-		cout << "\tpop %rax"<<endl;	// get second operand
 		switch(adop){
 			case OR:
+				if(type2!=BOOLEAN)
+					Error("opérande booléenne requis pour l'opérateur OR");
+				cout << "\tpop %rbx"<<endl;	// get first operand
+				cout << "\tpop %rax"<<endl;	// get second operand
 				cout << "\taddq	%rbx, %rax\t# OR"<<endl;// operand1 OR operand2
+				cout << "\tpush %rax" << endl;
 				break;			
 			case ADD:
-				cout << "\taddq	%rbx, %rax\t# ADD"<<endl;	// add both operands
-				break;			
+				if(type2!=INTEGER&&type2!=DOUBLE)
+					Error("opérande numérique requis pour l'addition");
+				if(type2==INTEGER){
+					cout << "\tpop %rbx"<<endl;	// get first operand
+					cout << "\tpop %rax"<<endl;	// get second operand
+					cout << "\taddq	%rbx, %rax\t# ADD"<<endl;	// add both operands
+					cout << "\tpush %rax"<<endl;			// store result
+				}
+				else{
+					cout<<"\tfldl	8(%rsp)\t"<<endl;
+					cout<<"\tfldl	(%rsp)\t# first operand -> %st(0) ; second operand -> %st(1)"<<endl;
+					cout<<"\tfaddp	%st(0),%st(1)\t# %st(0) <- op1 + op2 ; %st(1)=null"<<endl;
+					cout<<"\tfstpl 8(%rsp)"<<endl;
+					cout<<"\taddq	$8, %rsp\t# result on stack's top"<<endl; 
+				}
+				break;				
 			case SUB:	
-				cout << "\tsubq	%rbx, %rax\t# SUB"<<endl;	// substract both operands
-				break;
+				if(type2!=INTEGER&&type2!=DOUBLE)
+					Error("opérande numérique requis pour la soustraction");
+				if(type2==INTEGER){
+					cout << "\tpop %rbx"<<endl;	// get first operand
+					cout << "\tpop %rax"<<endl;	// get second operand
+					cout << "\tsubq	%rbx, %rax\t# ADD"<<endl;	// add both operands
+					cout << "\tpush %rax"<<endl;			// store result
+				}
+				else{
+					cout<<"\tfldl	(%rsp)\t"<<endl;
+					cout<<"\tfldl	8(%rsp)\t# first operand -> %st(0) ; second operand -> %st(1)"<<endl;
+					cout<<"\tfsubp	%st(0),%st(1)\t# %st(0) <- op1 - op2 ; %st(1)=null"<<endl;
+					cout<<"\tfstpl 8(%rsp)"<<endl;
+					cout<<"\taddq	$8, %rsp\t# result on stack's top"<<endl; 
+				}
+				break;	
 			default:
 				Error("opérateur additif inconnu");
 		}
-		cout << "\tpush %rax"<<endl;			// store result
 	}
 	return type1;
 }
@@ -223,14 +330,14 @@ void DeclarationPart(void){
 	if(current!=ID)
 		Error("Un identificater était attendu");
 	cout << lexer->YYText() << ":\t.quad 0"<<endl;
-	DeclaredVariables.insert(lexer->YYText());
+	DeclaredVariables[lexer->YYText()];
 	current=(TOKEN) lexer->yylex();
 	while(current==COMMA){
 		current=(TOKEN) lexer->yylex();
 		if(current!=ID)
 			Error("Un identificateur était attendu");
 		cout << lexer->YYText() << ":\t.quad 0"<<endl;
-		DeclaredVariables.insert(lexer->YYText());
+		DeclaredVariables[lexer->YYText()];
 		current=(TOKEN) lexer->yylex();
 	}
 	if(current!=LBRACKET)
@@ -261,44 +368,55 @@ OPREL RelationalOperator(void){
 // Expression := SimpleExpression [RelationalOperator SimpleExpression]
 enum TYPES Expression(void){
 	enum TYPES type1, type2;
+	unsigned long long tag;
 	OPREL oprel;
 	type1=SimpleExpression();
 	if(current==RELOP){
+		tag=++TagNumber;
 		oprel=RelationalOperator();
 		type2=SimpleExpression();
 		if(type1!=type2){
 			Error("Type differents/incompatibles pour Expression");
 		}
-		cout << "\tpop %rax"<<endl;
-		cout << "\tpop %rbx"<<endl;
-		cout << "\tcmpq %rax, %rbx"<<endl;
+		if(type1!=DOUBLE){
+			cout << "\tpop %rax"<<endl;
+			cout << "\tpop %rbx"<<endl;
+			cout << "\tcmpq %rax, %rbx"<<endl;
+		}
+		else{
+			cout<<"\tfldl	(%rsp)\t"<<endl;
+			cout<<"\tfldl	8(%rsp)\t# first operand -> %st(0) ; second operand -> %st(1)"<<endl;
+			cout<<"\t addq $16, %rsp\t# 2x pop nothing"<<endl;
+			cout<<"\tfcomip %st(1)\t\t# compare op1 and op2 -> %RFLAGS and pop"<<endl;
+			cout<<"\tfaddp %st(1)\t# pop nothing"<<endl;
+		}
 		switch(oprel){
 			case EQU:
-				cout << "\tje Vrai"<<++TagNumber<<"\t# If equal"<<endl;
+				cout << "\tje Vrai"<<tag<<"\t# If equal"<<endl;
 				break;
 			case DIFF:
-				cout << "\tjne Vrai"<<++TagNumber<<"\t# If different"<<endl;
+				cout << "\tjne Vrai"<<tag<<"\t# If different"<<endl;
 				break;
 			case SUPE:
-				cout << "\tjae Vrai"<<++TagNumber<<"\t# If above or equal"<<endl;
+				cout << "\tjae Vrai"<<tag<<"\t# If above or equal"<<endl;
 				break;
 			case INFE:
-				cout << "\tjbe Vrai"<<++TagNumber<<"\t# If below or equal"<<endl;
+				cout << "\tjbe Vrai"<<tag<<"\t# If below or equal"<<endl;
 				break;
 			case INF:
-				cout << "\tjb Vrai"<<++TagNumber<<"\t# If below"<<endl;
+				cout << "\tjb Vrai"<<tag<<"\t# If below"<<endl;
 				break;
 			case SUP:
-				cout << "\tja Vrai"<<++TagNumber<<"\t# If above"<<endl;
+				cout << "\tja Vrai"<<tag<<"\t# If above"<<endl;
 				break;
 			default:
 				Error("Opérateur de comparaison inconnu");
 
 		}
 		cout << "\tpush $0\t\t# False"<<endl;
-		cout << "\tjmp Suite"<<TagNumber<<endl;
-		cout << "Vrai"<<TagNumber<<":\tpush $0xFFFFFFFFFFFFFFFF\t\t# True"<<endl;	
-		cout << "Suite"<<TagNumber<<":"<<endl;
+		cout << "\tjmp Suite"<<tag<<endl;
+		cout << "Vrai"<<tag<<":\tpush $0xFFFFFFFFFFFFFFFF\t\t# True"<<endl;	
+		cout << "Suite"<<tag<<":"<<endl;
 		return BOOLEAN;
 	}
 	return type1;
@@ -314,7 +432,7 @@ enum TYPES AssignementStatement(void){
 		cerr << "Erreur : Variable '"<<lexer->YYText()<<"' non déclarée"<<endl;
 		exit(-1);
 	}
-	type1=INTEGER;	
+	type1=DeclaredVariables[lexer->YYText()];	
 	variable=lexer->YYText();
 	current=(TOKEN) lexer->yylex();
 	if(current!=ASSIGN)
@@ -324,7 +442,16 @@ enum TYPES AssignementStatement(void){
 	if (type1!=type2){
 		Error("Type differents/incompatibles pour AssignementStatement");
 	}
-	cout << "\tpop "<<variable<<endl;
+	switch(type1){
+        case DOUBLE:
+            cout << "\tmovsd (%rsp), %xmm0" << endl;
+            cout << "\tmovsd %xmm0, " << variable << "(%rip)" << endl;
+            cout << "\taddq $8, %rsp" << endl;
+            break;
+        default:
+            cout << "\tpop " << variable << endl;
+            break;
+    }
 	return type1;
 }
 
@@ -441,25 +568,53 @@ void StatementPart(void){
 	current=(TOKEN) lexer->yylex();
 }
 
-// DISPLAY := DISPLAY <expression>
+// DISPLAY := "DISPLAY" <expression>
 void Display(void){
+	unsigned long long tag=++TagNumber;
 	enum TYPES type;
 	if (current==DISPLAY){
 		current=(TOKEN) lexer->yylex();
 		type=Expression();
-		if (type!=INTEGER){
-		Error("Le type demandé n'est pas un entier");
-	}
+		switch(type){
+			case INTEGER : 
+				cout << "\tpop %rsi\t# The value to be displayed"<<endl;
+				cout << "\tmovq $FormatString1, %rdi\t# \"%llu\\n\""<<endl;
+				cout << "\tmovl	$0, %eax"<<endl;
+				cout << "\tcall	printf@PLT"<<endl;
+				break;
+			case BOOLEAN : 
+				cout << "\tpop %rdx\t# Zero : False, non-zero : true"<<endl;
+				cout << "\tcmpq $0, %rdx"<<endl;
+				cout << "\tje False"<<tag<<endl;
+				cout << "\tmovq $TrueString, %rdi\t# \"TRUE\\n\""<<endl;
+				cout << "\tjmp Next"<<tag<<endl;
+				cout << "False"<<tag<<":"<<endl;
+				cout << "\tmovq $FalseString, %rdi\t# \"FALSE\\n\""<<endl;
+				cout << "Next"<<tag<<":"<<endl;
+				cout << "\tcall	puts@PLT"<<endl;
+				break;
+			case CHAR : 
+				cout<<"\tpop %rsi\t\t\t# get character in the 8 lowest bits of %si"<<endl;
+				cout << "\tmovq $FormatString3, %rdi\t# \"%c\\n\""<<endl;
+				cout << "\tmovl	$0, %eax"<<endl;
+				cout << "\tcall	printf@PLT"<<endl;
+				break;
+			case DOUBLE : 
+    			cout << "\tmovsd (%rsp), %xmm0" << endl;
+    			cout << "\taddq $8, %rsp\t\t# Pop la valeur" << endl;
+    			// Alignement de la pile (si nécessaire) et appel
+   			 	cout << "\tmovl $1, %eax\t\t# 1 argument float" << endl;
+   				cout << "\tmovq $FormatString2, %rdi" << endl;
+    			cout << "\tandq $-16, %rsp\t\t# Alignement 16-bytes" << endl;
+    			cout << "\tcall printf@PLT" << endl;
+				break;
+			default: 
+				Error("DISPLAY ne fontionne que pour les entier, boolean, caractere et double");
+		}
 	}
 	else{
 		Error("Mot clé DISPLAY attendu");
 	}
-	cout << "\tpop %rdx\t# The value to be displayed"<<endl;
-	cout << "\tmovq $FormatString1, %rsi\t# \"%llu\\n\""<<endl;
-	cout << "\tmovl	$1, %edi"<<endl;
-	cout << "\tmovl	$0, %eax"<<endl;
-	cout << "\tcall	__printf_chk@PLT"<<endl;
-
 }
 
 enum TYPES check_type (void){
@@ -469,6 +624,12 @@ enum TYPES check_type (void){
 	else if(strcmp(lexer->YYText(),"INTEGER")==0){
 		return INTEGER;
 	}
+	else if(strcmp(lexer->YYText(),"DOUBLE")==0){
+		return DOUBLE;
+	}
+	else if(strcmp(lexer->YYText(),"CHAR")==0){
+		return CHAR;
+	}
 	else {
 		Error ("Erreur type attendu");
 	}
@@ -476,37 +637,51 @@ enum TYPES check_type (void){
 
 // VarDeclaration := Ident {"," Ident} ":" Type
 void VarDeclaration(void){
-	enum TYPES type;
-	if (current==ID){
-		cout << lexer->YYText() << ":\t.quad 0" << endl;  
-		DeclaredVariables.insert(lexer->YYText());           
-		current = (TOKEN) lexer->yylex();                    
-		while (current==COMMA){
-			current=(TOKEN) lexer->yylex();
-			if (current==ID){
-				string varName = lexer->YYText();          
-				cout << varName << ":\t.quad 0" << endl;
-				DeclaredVariables.insert(varName);         
-				current = (TOKEN) lexer->yylex();
-			}
-			else {
-				Error("Erreur Ident requis ");
-			}
-		}
-		if (current==COLON){
-			current=(TOKEN) lexer->yylex();
-			type=check_type();
-			current=(TOKEN) lexer->yylex();
-		}
-		else {
-			Error("Erreur signe ':' attendu ");
-		}
-	}
-	else {
-		Error("Erreur Ident requis ");
-	}
-	
-	
+    enum TYPES type;
+    set<string> idents;   
+
+    if (current == ID) {
+        idents.insert(lexer->YYText());          
+        current = (TOKEN) lexer->yylex();
+
+        while (current == COMMA) {
+            current = (TOKEN) lexer->yylex();
+            if (current == ID) {
+                idents.insert(lexer->YYText());  
+                current = (TOKEN) lexer->yylex();
+            } else {
+                Error("Erreur Ident requis");
+            }
+        }
+
+        if (current == COLON) {
+            current = (TOKEN) lexer->yylex();
+            type = check_type();                 
+            current = (TOKEN) lexer->yylex();
+
+            for (set<string>::iterator it = idents.begin(); it != idents.end(); ++it) {
+                switch (type) {
+                    case BOOLEAN:
+                    case INTEGER:
+                        cout << *it << ":\t.quad 0" << endl;
+                        break;
+                    case DOUBLE:
+                        cout << *it << ":\t.double 0.0" << endl;  
+                        break;
+                    case CHAR:
+                        cout << *it << ":\t.byte 0" << endl;      
+                        break;
+                    default:
+                        Error("type inconnu.");
+                }
+                DeclaredVariables[*it] = type;   
+            }
+        } else {
+            Error("Erreur signe ':' attendu");
+        }
+    } else {
+        Error("Erreur Ident requis");
+    }
 }
 
 // VarDeclarationPart := "VAR" VarDeclaration {";" VarDeclaration} "."
@@ -567,9 +742,11 @@ int main(void){	// First version : Source code on standard input and assembly co
 	// Header for gcc assembler / linker
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
 	cout << ".data"<<endl;
-	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
-	cout << "TrueString:\t.string \"TRUE\\n\"\t# used by printf to display the boolean value TRUE"<<endl; 
-	cout << "FalseString:\t.string \"FALSE\\n\"\t# used by printf to display the boolean value FALSE"<<endl; 
+	cout << "FormatString1:\t.string \"%llu\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
+	cout << "FormatString2:\t.string \"%g\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
+	cout << "FormatString3:\t.string \"%c\"\t# used by printf to display a 8-bit single character"<<endl; 
+	cout << "TrueString:\t.string \"TRUE\"\t# used by printf to display the boolean value TRUE"<<endl; 
+	cout << "FalseString:\t.string \"FALSE\"\t# used by printf to display the boolean value FALSE"<<endl; 
 	// Let's proceed to the analysis and code production
 	current=(TOKEN) lexer->yylex();
 	Program();
@@ -582,10 +759,3 @@ int main(void){	// First version : Source code on standard input and assembly co
 	}
 
 }
-		
-			
-
-
-
-
-
