@@ -232,6 +232,8 @@ enum TYPES Term(void){
 			case MOD:
 				if(type2!=INTEGER)
 					Error("type non entier pour le modulo");
+				cout << "\tpop %rbx"<<endl;  
+    			cout << "\tpop %rax"<<endl;  
 				cout << "\tmovq $0, %rdx"<<endl; 	// Higher part of numerator  
 				cout << "\tdiv %rbx"<<endl;			// remainder goes to %rdx
 				cout << "\tpush %rdx\t# MOD"<<endl;		// store result
@@ -457,80 +459,124 @@ enum TYPES AssignementStatement(void){
 
 void Statement(void);
 
-
 //IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
 void IfStatement (void){
-	enum TYPES type;
-	if (current== IF){
-		current=(TOKEN) lexer->yylex();
-		type=Expression();
-		if (type != BOOLEAN){
-			Error("type non boolean dans le IF");
-		}
-		if (current == THEN){
-			current=(TOKEN) lexer->yylex();
-			Statement();
-			if (current== ELSE){
-				current=(TOKEN) lexer->yylex();
-				Statement();
-			}
-		}
-		else {
-			Error("Texte 'THEN' attendu");
-		}
-	}
-	else {
-			Error("Texte 'IF' attendu");
-		}
+    unsigned long long tag = ++TagNumber;
+    enum TYPES type;
+    if (current == IF){
+        current = (TOKEN) lexer->yylex();
+        type = Expression();
+        if (type != BOOLEAN)
+            Error("type non boolean dans le IF");
+
+        // Vérifie la condition
+        cout << "\tpop %rax" << endl;
+        cout << "\tcmpq $0, %rax" << endl;
+        cout << "\tje Else" << tag << "\t# condition fausse → aller au ELSE" << endl;
+
+        if (current == THEN){
+            current = (TOKEN) lexer->yylex();
+            Statement();  // bloc THEN
+
+            if (current == ELSE){
+                cout << "\tjmp FinIf" << tag << "\t# sauter le ELSE" << endl;
+                cout << "Else" << tag << ":" << endl;
+                current = (TOKEN) lexer->yylex();
+                Statement();  // bloc ELSE
+                cout << "FinIf" << tag << ":" << endl;
+            }
+            else {
+                // pas de ELSE
+                cout << "Else" << tag << ":" << endl;
+            }
+        }
+        else
+            Error("Texte 'THEN' attendu");
+    }
+    else
+        Error("Texte 'IF' attendu");
 }
 
 
 //WhileStatement := "WHILE" Expression "DO" Statement
 void WhileStatement(void){
-	enum TYPES type;
-	if (current== WHILE){
-		current=(TOKEN) lexer->yylex();
-		type=Expression();
-		if (type != BOOLEAN){
-			Error("type non boolean dans le While");
-		}
-		if (current== DO){
-			current=(TOKEN) lexer->yylex();
-			Statement();
-		}
-		else {
-			Error("Texte 'DO' attendu");
-		}
-	}
-	else {
-			Error("Texte 'WHILE' attendu");
-		}
-}
+    unsigned long long tag = ++TagNumber;
+    enum TYPES type;
 
+    if (current == WHILE){
+        current = (TOKEN) lexer->yylex();
+
+        // Label de début de boucle
+        cout << "WhileDebut" << tag << ":" << endl;
+
+        type = Expression();
+        if (type != BOOLEAN)
+            Error("type non boolean dans le While");
+
+        // Vérifie la condition
+        cout << "\tpop %rax" << endl;
+        cout << "\tcmpq $0, %rax" << endl;
+        cout << "\tje WhileFin" << tag << "\t# condition fausse → on sort" << endl;
+
+        if (current == DO){
+            current = (TOKEN) lexer->yylex();
+            Statement();
+        }
+        else
+            Error("Texte 'DO' attendu");
+
+        // Retour au début
+        cout << "\tjmp WhileDebut" << tag << endl;
+        cout << "WhileFin" << tag << ":" << endl;
+    }
+    else
+        Error("Texte 'WHILE' attendu");
+}
 
 //ForStatement := "FOR" AssignementStatement "To" Expression "DO" Statement
 void ForStatement(void){
-	if (current== FOR){
-		current=(TOKEN) lexer->yylex();
-		AssignementStatement();
-		if (current== TO){
-			current=(TOKEN) lexer->yylex();
-			Expression();
-			if (current == DO){
-				current=(TOKEN) lexer->yylex();
-				Statement();
-			}
-			else {
-				Error("Texte 'DO' attendu");
-			}
-		}
-		else {
-				Error("Texte 'TO' attendu");
-			}
-	}
-	else {
-				Error("Texte 'FOR' attendu");
-			}
+    unsigned long long tag = ++TagNumber;
+    string variable;
+
+    if (current == FOR){
+        current = (TOKEN) lexer->yylex();
+
+        if (current != ID)
+            Error("Identificateur attendu après FOR");
+        variable = lexer->YYText();
+        AssignementStatement();
+
+        if (current == TO){
+            current = (TOKEN) lexer->yylex();
+
+            cout << "ForDebut" << tag << ":" << endl;
+
+            cout << "\tmovq " << variable << "(%rip), %rax" << endl;
+            cout << "\tpush %rax" << endl;
+
+            Expression();
+
+            cout << "\tpop %rbx\t# borne sup" << endl;
+            cout << "\tpop %rax\t# valeur de i" << endl;
+            cout << "\tcmpq %rbx, %rax" << endl;
+            cout << "\tjg ForFin" << tag << "\t# i > borne → on sort" << endl;
+
+            if (current == DO){
+                current = (TOKEN) lexer->yylex();
+                Statement();
+            }
+            else
+                Error("Texte 'DO' attendu");
+
+            cout << "\tincq " << variable << "(%rip)" << endl;
+            cout << "\tjmp ForDebut" << tag << endl;
+            cout << "ForFin" << tag << ":" << endl;
+        }
+        else
+            Error("Texte 'TO' attendu");
+    }
+    else
+        Error("Texte 'FOR' attendu");
 }
 
 //BlockStatement := "BEGIN" Statement { ";" Statement } "END"
@@ -742,9 +788,9 @@ int main(void){	// First version : Source code on standard input and assembly co
 	// Header for gcc assembler / linker
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
 	cout << ".data"<<endl;
-	cout << "FormatString1:\t.string \"%llu\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
-	cout << "FormatString2:\t.string \"%g\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
-	cout << "FormatString3:\t.string \"%c\"\t# used by printf to display a 8-bit single character"<<endl; 
+	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
+	cout << "FormatString2:\t.string \"%g\\n\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
+	cout << "FormatString3:\t.string \"%c\\n\"\t# used by printf to display a 8-bit single character"<<endl; 
 	cout << "TrueString:\t.string \"TRUE\"\t# used by printf to display the boolean value TRUE"<<endl; 
 	cout << "FalseString:\t.string \"FALSE\"\t# used by printf to display the boolean value FALSE"<<endl; 
 	// Let's proceed to the analysis and code production

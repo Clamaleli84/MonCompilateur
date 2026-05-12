@@ -1,25 +1,58 @@
-VAR		a,b :	INTEGER;
-		c1,c2:	CHAR;
-		num, denum, frac:		DOUBLE.
-c1:='f';
-c2:='a';
-num:=1.0;
-denum:=1.0;
-frac:=num/denum;
-a:=1;
-WHILE frac>0.1 DO
+VAR flag : BOOLEAN; flag2 : BOOLEAN; i : INTEGER; x : DOUBLE; y : DOUBLE; c : CHAR.
 BEGIN
-	DISPLAY c1;
-	DISPLAY '=';
-	DISPLAY frac;
-	DISPLAY '\n';
-	DISPLAY c2;
-	DISPLAY '=';
-	DISPLAY a;
-	DISPLAY '\n';
-	denum:=denum+1.0;
-	frac:=num/denum;
-	a:=a+1;
-	DISPLAY (a>3);
-	DISPLAY '\n'
+  x := 3.14;
+  y := 2.0;
+  x := x + y;
+  DISPLAY x;
+  x := 3.14;
+  x := x - y;
+  DISPLAY x;
+  x := 3.14;
+  x := x * y;
+  DISPLAY x;
+  x := 3.14;
+  x := x / y;
+  DISPLAY x;
+  flag := 3.14 > 2.0;
+  DISPLAY flag;
+  flag := 3.14 < 2.0;
+  DISPLAY flag;
+  flag := 2.0 == 2.0;
+  DISPLAY flag;
+  flag := 2.0 != 3.14;
+  DISPLAY flag;
+  c := '\n';
+  DISPLAY c;
+  c := '\t';
+  DISPLAY c;
+  flag := 1 == 1;
+  flag2 := 2 == 2;
+  flag := flag || flag2;
+  DISPLAY flag;
+  flag := 1 == 1;
+  flag2 := 0 == 1;
+  flag := flag && flag2;
+  DISPLAY flag;
+  flag := 1 == 1;
+  i := 1;
+  WHILE flag DO
+    BEGIN
+      DISPLAY i;
+      i := i + 1;
+      flag := i <= 3
+    END;
+  i := 1;
+  WHILE i <= 3 DO
+    BEGIN
+      IF i == 1 THEN
+        BEGIN
+          IF i == 1 THEN
+            DISPLAY i
+          ELSE
+            DISPLAY i
+        END
+      ELSE
+        DISPLAY i;
+      i := i + 1
+    END
 END.

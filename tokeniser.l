@@ -35,7 +35,7 @@ unknown [^\"A-Za-z0-9 \n\r\t\(\)\<\>\=\!\%\&\|\}\-\;\.]+
 "BEGIN"		return BEG;
 "END"		return END;
 "FOR"		return FOR;
-"To"		return TO;
+"TO"		return TO;
 "DO"		return DO;
 "WHILE"		return WHILE;
 "IF"		return IF;
