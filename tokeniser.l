@@ -41,6 +41,8 @@ unknown [^\"A-Za-z0-9 \n\r\t\(\)\<\>\=\!\%\&\|\}\-\;\.]+
 "IF"		return IF;
 "THEN"		return THEN;
 "ELSE"		return ELSE;
+"CASE"		return CASE;
+"OF"		return OF;
 
 "DISPLAY" 	return DISPLAY;
 "VAR"		return VAR;

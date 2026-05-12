@@ -579,6 +579,127 @@ void ForStatement(void){
         Error("Texte 'FOR' attendu");
 }
 
+void Constant(void){
+    if(current == NUMBER){
+        current = (TOKEN) lexer->yylex();
+    }
+    else if(current == CHARCONST){
+        current = (TOKEN) lexer->yylex();
+    }
+    else{
+        Error("Constante (nombre ou caractère) requise");
+    }
+}
+//<empty>::=
+bool Empty(void){
+	if (current==END || current==SEMICOLON){
+		return true;
+	}
+	return false;
+}
+
+//<case label list> ::= <constant> {, <constant> }
+void CaseLabelList(void){
+	Constant();
+	while (current==COMMA){
+		current = (TOKEN) lexer->yylex();
+		Constant();
+		}
+}
+
+//<case list element> ::= <case label list> : <statement> | <empty>
+void CaseListElement(void){
+    if(Empty())
+        return;
+    CaseLabelList();
+    if(current == COLON){
+        current = (TOKEN) lexer->yylex();
+        Statement();
+    }
+    else{
+        Error("Le caractere ':' est attendu dans le case");
+    }
+}
+
+//<case statement> ::= case <expression> of <case list element> {; <case list element> } end
+void CaseStatement(void){
+    unsigned long long tag = ++TagNumber;
+    unsigned long long elemTag;
+
+    if(current == CASE){
+        current = (TOKEN) lexer->yylex();
+
+        Expression();
+        cout << "\tpop %rax\t# valeur du CASE" << endl;
+
+        if(current != OF)
+            Error("OF requis dans le CASE");
+        current = (TOKEN) lexer->yylex();
+
+        while(current != END){
+            if(Empty())
+                break;
+
+            elemTag = ++TagNumber;
+
+            if(current == NUMBER){
+                cout << "\tcmpq $" << atoi(lexer->YYText()) << ", %rax" << endl;
+                current = (TOKEN) lexer->yylex();
+                cout << "\tje Case" << elemTag << endl;
+                while(current == COMMA){
+                    current = (TOKEN) lexer->yylex();
+                    if(current == NUMBER){
+                        cout << "\tcmpq $" << atoi(lexer->YYText()) << ", %rax" << endl;
+                        current = (TOKEN) lexer->yylex();
+                        cout << "\tje Case" << elemTag << endl;
+                    }
+                }
+            }
+            else if(current == CHARCONST){
+                string s = lexer->YYText();
+                char c = s[1];
+                cout << "\tcmpq $" << (int)c << ", %rax" << endl;
+                current = (TOKEN) lexer->yylex();
+                cout << "\tje Case" << elemTag << endl;
+                while(current == COMMA){
+                    current = (TOKEN) lexer->yylex();
+                    if(current == CHARCONST){
+                        s = lexer->YYText();
+                        c = s[1];
+                        cout << "\tcmpq $" << (int)c << ", %rax" << endl;
+                        current = (TOKEN) lexer->yylex();
+                        cout << "\tje Case" << elemTag << endl;
+                    }
+                }
+            }
+
+            cout << "\tjmp SuiteCase" << elemTag << endl;
+            cout << "Case" << elemTag << ":" << endl;
+
+            if(current != COLON)
+                Error("':' attendu dans le CASE");
+            current = (TOKEN) lexer->yylex();
+
+            Statement();
+
+            cout << "\tjmp FinCase" << tag << endl;
+            cout << "SuiteCase" << elemTag << ":" << endl;
+
+            if(current == SEMICOLON)
+                current = (TOKEN) lexer->yylex();
+        }
+
+        cout << "FinCase" << tag << ":" << endl;
+
+        if(current != END)
+            Error("END requis pour le CASE");
+        current = (TOKEN) lexer->yylex();
+    }
+    else
+        Error("CASE requis");
+}
+
+
 //BlockStatement := "BEGIN" Statement { ";" Statement } "END"
 void BlockStatement(void) {
 	if (current == BEG){
@@ -624,7 +745,7 @@ void Display(void){
 		switch(type){
 			case INTEGER : 
 				cout << "\tpop %rsi\t# The value to be displayed"<<endl;
-				cout << "\tmovq $FormatString1, %rdi\t# \"%llu\\n\""<<endl;
+				cout << "\tmovq $FormatString1, %rdi\t# \"%llu\""<<endl;
 				cout << "\tmovl	$0, %eax"<<endl;
 				cout << "\tcall	printf@PLT"<<endl;
 				break;
@@ -632,16 +753,16 @@ void Display(void){
 				cout << "\tpop %rdx\t# Zero : False, non-zero : true"<<endl;
 				cout << "\tcmpq $0, %rdx"<<endl;
 				cout << "\tje False"<<tag<<endl;
-				cout << "\tmovq $TrueString, %rdi\t# \"TRUE\\n\""<<endl;
+				cout << "\tmovq $TrueString, %rdi\t# \"TRUE\""<<endl;
 				cout << "\tjmp Next"<<tag<<endl;
 				cout << "False"<<tag<<":"<<endl;
-				cout << "\tmovq $FalseString, %rdi\t# \"FALSE\\n\""<<endl;
+				cout << "\tmovq $FalseString, %rdi\t# \"FALSE\""<<endl;
 				cout << "Next"<<tag<<":"<<endl;
 				cout << "\tcall	puts@PLT"<<endl;
 				break;
 			case CHAR : 
 				cout<<"\tpop %rsi\t\t\t# get character in the 8 lowest bits of %si"<<endl;
-				cout << "\tmovq $FormatString3, %rdi\t# \"%c\\n\""<<endl;
+				cout << "\tmovq $FormatString3, %rdi\t# \"%c\""<<endl;
 				cout << "\tmovl	$0, %eax"<<endl;
 				cout << "\tcall	printf@PLT"<<endl;
 				break;
@@ -750,7 +871,7 @@ void VarDeclarationPart(void){
 }
 
 
-//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display
+//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display | CaseStatement
 void Statement(void){
 	if(current==ID){
 		AssignementStatement();
@@ -766,6 +887,9 @@ void Statement(void){
 	}
 	else if(current==BEG){
 		BlockStatement();
+	}
+	else if(current == CASE){
+    CaseStatement();
 	}
 	else if(current==DISPLAY){
 		Display();
@@ -788,9 +912,9 @@ int main(void){	// First version : Source code on standard input and assembly co
 	// Header for gcc assembler / linker
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
 	cout << ".data"<<endl;
-	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
-	cout << "FormatString2:\t.string \"%g\\n\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
-	cout << "FormatString3:\t.string \"%c\\n\"\t# used by printf to display a 8-bit single character"<<endl; 
+	cout << "FormatString1:\t.string \"%llu\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
+	cout << "FormatString2:\t.string \"%g\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
+	cout << "FormatString3:\t.string \"%c\"\t# used by printf to display a 8-bit single character"<<endl; 
 	cout << "TrueString:\t.string \"TRUE\"\t# used by printf to display the boolean value TRUE"<<endl; 
 	cout << "FalseString:\t.string \"FALSE\"\t# used by printf to display the boolean value FALSE"<<endl; 
 	// Let's proceed to the analysis and code production
