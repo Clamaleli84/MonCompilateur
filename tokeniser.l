@@ -46,6 +46,8 @@ unknown [^\"A-Za-z0-9 \n\r\t\(\)\<\>\=\!\%\&\|\}\-\;\.]+
 
 "DISPLAY" 	return DISPLAY;
 "VAR"		return VAR;
+"REPEAT"	return REPEAT;
+"UNTIL"		return UNTIL;
 
 "BOOLEAN"	return BOOLEAN;
 "INTEGER"	return INTEGER;

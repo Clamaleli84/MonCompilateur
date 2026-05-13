@@ -533,6 +533,39 @@ void WhileStatement(void){
         Error("Texte 'WHILE' attendu");
 }
 
+//DoWhileStatement := "DO" Statement "WHILE" Expression
+void DoWhileStatement(void){
+    unsigned long long tag = ++TagNumber;
+    enum TYPES type;
+
+    if (current != DO)
+        Error("Texte 'DO' attendu");
+
+    current = (TOKEN) lexer->yylex();
+
+    // Label de début de boucle
+    cout << "DoWhileDebut" << tag << ":" << endl;
+
+    Statement();
+
+    if (current != WHILE)
+        Error("Mot clé WHILE requis");
+
+    current = (TOKEN) lexer->yylex();
+
+    type = Expression();
+    if (type != BOOLEAN)
+        Error("type non boolean dans le DoWhile");
+
+    // Vérifie la condition : si vrai, on reboucle
+    cout << "\tpop %rax" << endl;
+    cout << "\tcmpq $0, %rax" << endl;
+    cout << "\tjne DoWhileDebut" << tag << "\t# condition vraie → on reboucle" << endl;
+    cout << "DoWhileFin" << tag << ":" << endl;
+}
+
+
+
 //ForStatement := "FOR" AssignementStatement "To" Expression "DO" Statement
 void ForStatement(void){
     unsigned long long tag = ++TagNumber;
@@ -870,8 +903,38 @@ void VarDeclarationPart(void){
 	}
 }
 
+//<repeat statement> ::= repeat <statement> {; <statement>} until <expression>
+void RepeatStatement(void){
+	unsigned long long tag=++TagNumber;
+	if (current==REPEAT){
+		current=(TOKEN) lexer->yylex();
+		cout << "REPEATBegin"<<tag<<": "<<endl;
+		Statement();
 
-//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display | CaseStatement
+
+		while (current==SEMICOLON){
+			current=(TOKEN) lexer->yylex();
+			Statement();
+		}
+		if (current==UNTIL){
+			current=(TOKEN) lexer->yylex();
+			Expression();
+			cout << "\tpop %rax"<<endl;
+			cout << "\tcmpq $0, %rax"<<endl;
+			cout << "\tje REPEATBegin"<<tag<<endl;
+			cout << "REPEATEnd"<<tag<<": "<<endl;
+		}
+		else {
+			Error("Mot clé UNTIL necessaire");
+		}
+	}
+	else {
+		Error("Mot clé REPEAT necessaire");
+	}
+}
+
+
+//Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display | CaseStatement | RepeatStatement | DoWhileStatement
 void Statement(void){
 	if(current==ID){
 		AssignementStatement();
@@ -882,6 +945,9 @@ void Statement(void){
 	else if(current==WHILE){
 		WhileStatement();
 	}
+	else if (current==DO){
+		DoWhileStatement();
+	}
 	else if(current==FOR){
 		ForStatement();
 	}
@@ -889,10 +955,13 @@ void Statement(void){
 		BlockStatement();
 	}
 	else if(current == CASE){
-    CaseStatement();
+    	CaseStatement();
 	}
 	else if(current==DISPLAY){
 		Display();
+	}
+	else if (current==REPEAT){
+		RepeatStatement();
 	}
 	else {
 		Error("Erreur aucun mot clé renseigné");
@@ -912,9 +981,9 @@ int main(void){	// First version : Source code on standard input and assembly co
 	// Header for gcc assembler / linker
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
 	cout << ".data"<<endl;
-	cout << "FormatString1:\t.string \"%llu\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
-	cout << "FormatString2:\t.string \"%g\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
-	cout << "FormatString3:\t.string \"%c\"\t# used by printf to display a 8-bit single character"<<endl; 
+	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
+	cout << "FormatString2:\t.string \"%g\\n\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
+	cout << "FormatString3:\t.string \"%c\\n\"\t# used by printf to display a 8-bit single character"<<endl; 
 	cout << "TrueString:\t.string \"TRUE\"\t# used by printf to display the boolean value TRUE"<<endl; 
 	cout << "FalseString:\t.string \"FALSE\"\t# used by printf to display the boolean value FALSE"<<endl; 
 	// Let's proceed to the analysis and code production
