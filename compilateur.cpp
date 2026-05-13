@@ -130,6 +130,18 @@ enum TYPES CharConst(void){
     return CHAR;
 }
 
+enum TYPES StringConst(void){
+	unsigned long long tag = ++TagNumber;
+	string text = lexer->YYText();
+	cout << "\t.section .data" << endl;
+	cout << "StringConst" << tag << ":\t.string " << text << endl;
+    cout << "\t.text"<< endl;
+    cout << "\tpushq $StringConst"<< tag << "\t# address of "<< text << endl;
+    current = (TOKEN) lexer->yylex();
+    return STRING;
+}
+
+
 enum TYPES Expression(void);			// Called by Term() and calls Term()
 
 // Factor := Number | Letter | "(" Expression ")"| "!" Factor
@@ -152,6 +164,9 @@ enum TYPES Factor(void){
 			break;
 		case CHARCONST :
 			type = CharConst();
+			break;
+		case STRINGCONST : 
+			type = StringConst();
 			break;
 		default : 
 			Error("'(', ou constante ou variable attendue.");
@@ -566,7 +581,7 @@ void DoWhileStatement(void){
 
 
 
-//ForStatement := "FOR" AssignementStatement "To" Expression "DO" Statement
+//ForStatement := "FOR" AssignementStatement "To" Expression "DO" Statement | "FOR" Assignement "DOWNTO" Expression "DO" Statement
 void ForStatement(void){
     unsigned long long tag = ++TagNumber;
     string variable;
@@ -579,10 +594,11 @@ void ForStatement(void){
         variable = lexer->YYText();
         AssignementStatement();
 
-        if (current == TO){
-            current = (TOKEN) lexer->yylex();
+		switch (current){
+		case TO:
+			current = (TOKEN) lexer->yylex();
 
-            cout << "ForDebut" << tag << ":" << endl;
+            cout << "ForDebutTO" << tag << ":" << endl;
 
             cout << "\tmovq " << variable << "(%rip), %rax" << endl;
             cout << "\tpush %rax" << endl;
@@ -592,7 +608,7 @@ void ForStatement(void){
             cout << "\tpop %rbx\t# borne sup" << endl;
             cout << "\tpop %rax\t# valeur de i" << endl;
             cout << "\tcmpq %rbx, %rax" << endl;
-            cout << "\tjg ForFin" << tag << "\t# i > borne → on sort" << endl;
+            cout << "\tjg ForFinTO" << tag << "\t# i > borne → on sort" << endl;
 
             if (current == DO){
                 current = (TOKEN) lexer->yylex();
@@ -604,9 +620,39 @@ void ForStatement(void){
             cout << "\tincq " << variable << "(%rip)" << endl;
             cout << "\tjmp ForDebut" << tag << endl;
             cout << "ForFin" << tag << ":" << endl;
-        }
-        else
-            Error("Texte 'TO' attendu");
+			break;
+		case DOWNTO:
+    		current = (TOKEN) lexer->yylex();
+    		cout << "ForDebutDOWNTO" << tag << ":" << endl;
+
+   
+    		cout << "\tmovq " << variable << "(%rip), %rax" << endl;
+    		cout << "\tpush %rax" << endl;
+
+    		Expression(); // borne inférieure
+
+    		cout << "\tpop %rbx\t# borne inf" << endl;
+    		cout << "\tpop %rax\t# valeur de i" << endl;
+    		cout << "\tcmpq %rbx, %rax" << endl;
+    		// DOWNTO : on sort si i < borne_inf
+    		cout << "\tjl ForFinDOWNTO" << tag << "\t# i < borne → on sort" << endl;
+
+    		if (current == DO){
+     		   current = (TOKEN) lexer->yylex();
+    		    Statement();
+    		}
+    		else
+    		    Error("Texte 'DO' attendu");
+
+   		 	// DOWNTO : décrémenter, pas incrémenter
+    		cout << "\tdecq " << variable << "(%rip)" << endl;
+   			 cout << "\tjmp ForDebutDOWNTO" << tag << endl;  // label cohérent
+   			 cout << "ForFinDOWNTO" << tag << ":" << endl;   // label cohérent
+    		break;
+		default:
+			Error("Mot clé 'TO' ou 'DOWNTO' necessaire pour la boucle FOR");
+			break;
+		}
     }
     else
         Error("Texte 'FOR' attendu");
@@ -808,6 +854,12 @@ void Display(void){
     			cout << "\tandq $-16, %rsp\t\t# Alignement 16-bytes" << endl;
     			cout << "\tcall printf@PLT" << endl;
 				break;
+			case STRING : 
+				cout << "\tpop %rsi\t# The value of the string"<<endl;
+				cout << "\tmovq $FormatString4, %rdi\t# \"%s\""<<endl;
+				cout << "\tmovl	$0, %eax"<<endl;
+				cout << "\tcall	printf@PLT"<<endl;
+				break;
 			default: 
 				Error("DISPLAY ne fontionne que pour les entier, boolean, caractere et double");
 		}
@@ -829,6 +881,9 @@ enum TYPES check_type (void){
 	}
 	else if(strcmp(lexer->YYText(),"CHAR")==0){
 		return CHAR;
+	}
+	else if(strcmp(lexer->YYText(),"STRING")==0){
+		return STRING;
 	}
 	else {
 		Error ("Erreur type attendu");
@@ -871,6 +926,9 @@ void VarDeclaration(void){
                     case CHAR:
                         cout << *it << ":\t.byte 0" << endl;      
                         break;
+					case STRING:
+						cout<< *it << ":\t.quad 0" << endl;
+						break;
                     default:
                         Error("type inconnu.");
                 }
@@ -934,6 +992,8 @@ void RepeatStatement(void){
 }
 
 
+
+
 //Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | Display | CaseStatement | RepeatStatement | DoWhileStatement
 void Statement(void){
 	if(current==ID){
@@ -984,6 +1044,7 @@ int main(void){	// First version : Source code on standard input and assembly co
 	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
 	cout << "FormatString2:\t.string \"%g\\n\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
 	cout << "FormatString3:\t.string \"%c\\n\"\t# used by printf to display a 8-bit single character"<<endl; 
+	cout << "FormatString4:\t.string \"%s\\n\"\t# used by printf to display a string"<<endl; 
 	cout << "TrueString:\t.string \"TRUE\"\t# used by printf to display the boolean value TRUE"<<endl; 
 	cout << "FalseString:\t.string \"FALSE\"\t# used by printf to display the boolean value FALSE"<<endl; 
 	// Let's proceed to the analysis and code production
