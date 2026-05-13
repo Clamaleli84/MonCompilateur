@@ -618,8 +618,8 @@ void ForStatement(void){
                 Error("Texte 'DO' attendu");
 
             cout << "\tincq " << variable << "(%rip)" << endl;
-            cout << "\tjmp ForDebut" << tag << endl;
-            cout << "ForFin" << tag << ":" << endl;
+            cout << "\tjmp ForDebutTO" << tag << endl;
+            cout << "ForFinTO" << tag << ":" << endl;
 			break;
 		case DOWNTO:
     		current = (TOKEN) lexer->yylex();
