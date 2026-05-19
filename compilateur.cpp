@@ -45,6 +45,7 @@ FlexLexer* lexer = new yyFlexLexer; // This is the flex tokeniser
 map<string, enum TYPES> DeclaredVariables;
 unsigned long long TagNumber=0;
 
+
 bool IsDeclared(const char *id){
 	return DeclaredVariables.find(id)!=DeclaredVariables.end();
 }
@@ -65,7 +66,7 @@ void Error(string s){
 // Expression := SimpleExpression [RelationalOperator SimpleExpression]
 // SimpleExpression := Term {AdditiveOperator Term}
 // Term := Factor {MultiplicativeOperator Factor}
-// Factor := Number | Letter | "(" Expression ")"| "!" Factor
+// Factor := Number | Letter | "(" Expression ")"
 // Number := Digit{Digit}
 
 // AdditiveOperator := "+" | "-" | "||"
@@ -144,7 +145,7 @@ enum TYPES StringConst(void){
 
 enum TYPES Expression(void);			// Called by Term() and calls Term()
 
-// Factor := Number | Letter | "(" Expression ")"| "!" Factor
+// Factor := Number | Letter | "(" Expression ")"
 enum TYPES Factor(void){
 	enum TYPES type;
 	switch(current){
@@ -893,7 +894,7 @@ enum TYPES check_type (void){
 // VarDeclaration := Ident {"," Ident} ":" Type
 void VarDeclaration(void){
     enum TYPES type;
-    set<string> idents;   
+    set<string> idents; 
 
     if (current == ID) {
         idents.insert(lexer->YYText());          
@@ -1028,7 +1029,7 @@ void Statement(void){
 	}
 }
 
-// Program := [DeclarationPart] StatementPart
+// Program := [DeclarationPart] [VarDeclarationPart] StatementPart | 
 void Program(void){
 	if(current==RBRACKET)
 		DeclarationPart();

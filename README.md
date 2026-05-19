@@ -34,22 +34,48 @@ To : 64 bit 80x86 assembly langage (AT&T)
 
 **This version Can handle :**
 
-// Program := [DeclarationPart] StatementPart
-// DeclarationPart := "[" Identifier {"," Identifier} "]"
-// StatementPart := Statement {";" Statement} "."
-// Statement := AssignementStatement
-// AssignementStatement := Identifier ":=" Expression
+Program             := [DeclarationPart] [VarDeclarationPart] StatementPart
 
-// Expression := SimpleExpression [RelationalOperator SimpleExpression]
-// SimpleExpression := Term {AdditiveOperator Term}
-// Term := Factor {MultiplicativeOperator Factor}
-// Factor := Number | Letter | "(" Expression ")"| "!" Factor
-// Number := Digit{Digit}
-// Identifier := Letter {(Letter|Digit)}
+DeclarationPart     := "[" Identifier {"," Identifier} "]"
 
-// AdditiveOperator := "+" | "-" | "||"
-// MultiplicativeOperator := "*" | "/" | "%" | "&&"
-// RelationalOperator := "==" | "!=" | "<" | ">" | "<=" | ">="  
-// Digit := "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"
-// Letter := "a"|...|"z"
+VarDeclarationPart  := "VAR" VarDeclaration {";" VarDeclaration} "."
+VarDeclaration      := Ident {"," Ident} ":" Type
 
+StatementPart       := Statement {";" Statement} "."
+
+Statement           := AssignementStatement | IfStatement | WhileStatement | DoWhileStatement | ForStatement | BlockStatement | RepeatStatement | CaseStatement | Display
+
+AssignementStatement := Identifier ":=" Expression
+
+IfStatement         := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
+WhileStatement      := "WHILE" Expression "DO" Statement
+DoWhileStatement    := "DO" Statement "WHILE" Expression
+ForStatement        := "FOR" AssignementStatement "TO" Expression "DO" Statement | "FOR" AssignementStatement "DOWNTO" Expression "DO" Statement
+BlockStatement      := "BEGIN" Statement {";" Statement} "END"
+RepeatStatement     := "REPEAT" Statement {";" Statement} "UNTIL" Expression
+CaseStatement       := "CASE" Expression "OF" CaseListElement {";" CaseListElement} "END"
+
+CaseListElement     := CaseLabelList ":" Statement | <empty>
+CaseLabelList       := Constant {"," Constant}
+Constant            := Number | CharConst
+
+Display             := "DISPLAY" Expression
+
+Expression          := SimpleExpression [RelationalOperator SimpleExpression]
+SimpleExpression    := Term {AdditiveOperator Term}
+Term                := Factor {MultiplicativeOperator Factor}
+Factor              := Number | CharConst | StringConst | Identifier | "(" Expression ")"
+
+Number              := Digit {Digit} ["." Digit {Digit}]
+Identifier          := Letter {Letter | Digit}
+
+AdditiveOperator       := "+" | "-" | "||"
+MultiplicativeOperator := "*" | "/" | "%" | "&&"
+RelationalOperator     := "==" | "!=" | "<" | ">" | "<=" | ">="
+
+Digit  := "0" | ... | "9"
+Letter := "a" | ... | "z" | "A" | ... | "Z"
+
+
+
+Un test complet a tester est disponible dans le fichier test.p
